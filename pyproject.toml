@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "guardrail-kit"
+version = "0.1.0"
+description = "Framework-independent guardrails for AI applications"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+dependencies = ["sqlglot>=30.0,<31"]
+
+[project.optional-dependencies]
+google-adk = ["google-adk==2.12.0"]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.15,<2",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.11,<1",
+  "twine>=6.1,<7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/guardrail_kit"]
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["guardrail_kit"]
+
+[[tool.mypy.overrides]]
+module = "guardrail_kit.integrations.google_adk"
+ignore_missing_imports = true
+disallow_subclassing_any = false
+
