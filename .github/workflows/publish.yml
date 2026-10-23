@@ -15,6 +15,23 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          with Path("pyproject.toml").open("rb") as pyproject:
+              version = tomllib.load(pyproject)["project"]["version"]
+
+          actual = os.environ["RELEASE_TAG"]
+          expected = f"v{version}"
+          if actual != expected:
+              raise SystemExit(f"Release tag {actual!r} must equal {expected!r}")
+          PY
       - run: python -m pip install -e '.[dev,google-adk]'
       - run: pytest --cov=guardrail_kit --cov-report=term-missing --cov-fail-under=75
       - run: ruff check .
