@@ -22,6 +22,8 @@ def canonical_identifier(
         case is IdentifierCase.LOWER_UNQUOTED and not identifier.args.get("quoted")
     ):
         value = value.lower()
+    elif case is IdentifierCase.UPPER_UNQUOTED and not identifier.args.get("quoted"):
+        value = value.upper()
     if _requires_quotes(value, dialect, kind):
         return exp.Identifier(this=value, quoted=True).sql(dialect=dialect.sqlglot_name)
     return value
@@ -135,6 +137,8 @@ def _canonical_dot_prefix(expression: exp.Expression, dialect: DialectSpec) -> s
 
 def _requires_quotes(value: str, dialect: DialectSpec, kind: IdentifierKind) -> bool:
     if dialect.case_for(kind) is IdentifierCase.LOWER_UNQUOTED and value != value.lower():
+        return True
+    if dialect.case_for(kind) is IdentifierCase.UPPER_UNQUOTED and value != value.upper():
         return True
     if not _SIMPLE_IDENTIFIER.fullmatch(value):
         return True

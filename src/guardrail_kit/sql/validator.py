@@ -99,7 +99,9 @@ class SQLValidator:
             )
         if expression.find(exp.Into):
             return _Violation("select_into_not_allowed", "SELECT INTO is not allowed.")
-        if expression.find(exp.Lock):
+        if any(table.args.get("hints") for table in expression.find_all(exp.Table)):
+            return self._unsupported("Table hints are not supported.")
+        if expression.find(exp.Lock) and not self.policy._dialect_spec.supports_locking_reads:
             return _Violation("locking_not_allowed", "Locking SELECT statements are not allowed.")
         if expression.find(exp.Command):
             return self._unsupported("The query contains an unsupported construct.")
@@ -114,11 +116,21 @@ class SQLValidator:
         scopes = traverse_scope(expression)
         if not scopes:
             return self._unsupported("The query structure is not supported.")
-        if any(isinstance(scope.expression, exp.SetOperation) for scope in scopes):
+        if (
+            not self.policy._dialect_spec.supports_set_operations
+            and any(isinstance(scope.expression, exp.SetOperation) for scope in scopes)
+        ):
             return self._unsupported("Set operations are not supported.")
         if not self.policy.allow_subqueries and any(scope.is_subquery for scope in scopes):
             return _Violation("subquery_not_allowed", "Subqueries are not allowed by this policy.")
-        if not self.policy.allow_ctes and expression.args.get("with_") is not None:
+        with_clause = expression.args.get("with_")
+        if (
+            isinstance(with_clause, exp.With)
+            and with_clause.args.get("recursive")
+            and not self.policy._dialect_spec.supports_recursive_ctes
+        ):
+            return self._unsupported("Recursive CTEs are not supported.")
+        if not self.policy.allow_ctes and with_clause is not None:
             return _Violation("cte_not_allowed", "CTEs are not allowed by this policy.")
 
         for scope in scopes:
@@ -138,8 +150,18 @@ class SQLValidator:
             if self.policy.require_limit:
                 return _Violation("limit_required", "A row LIMIT is required by this policy.")
         else:
-            limit_expr = limit.expression
-            if not isinstance(limit_expr, exp.Literal) or not limit_expr.is_int:
+            limit_expr = (
+                limit.args.get("count") if isinstance(limit, exp.Fetch) else limit.expression
+            )
+            options = limit.args.get("limit_options")
+            if (
+                not isinstance(limit_expr, exp.Literal)
+                or not limit_expr.is_int
+                or (
+                    isinstance(options, exp.LimitOptions)
+                    and (options.args.get("percent") or options.args.get("with_ties"))
+                )
+            ):
                 return _Violation("invalid_limit", "LIMIT must be a positive integer literal.")
             value = int(limit_expr.this)
             if value < 1:
@@ -181,19 +203,15 @@ class SQLValidator:
         restricted = bool(self.policy.allowed_columns) or (
             self.policy.unlisted_table_columns is UnlistedColumnPolicy.BLOCK
         )
-        if (
-            restricted
-            and isinstance(scope.expression, exp.Select)
-            and any(
-                isinstance(selected, exp.Star)
-                or (isinstance(selected, exp.Column) and isinstance(selected.this, exp.Star))
-                for selected in scope.expression.expressions
-            )
-        ):
+        if restricted and any(scope.expression.find_all(exp.Star)):
             return _Violation(
                 "wildcard_not_allowed",
                 "Wildcard columns are not allowed when column restrictions are configured.",
             )
+        if isinstance(scope.expression, exp.Select):
+            violation = self._inspect_join_columns(scope.expression, physical, derived, restricted)
+            if violation:
+                return violation
         for column in scope.columns:
             if isinstance(column.this, exp.Star):
                 if restricted:
@@ -249,6 +267,68 @@ class SQLValidator:
                         "column_scope_ambiguous", "A derived column could not be resolved safely."
                     )
         return None
+
+    def _inspect_join_columns(
+        self,
+        select: exp.Select,
+        physical: dict[str, str],
+        derived: dict[str, Scope],
+        restricted: bool,
+    ) -> _Violation | None:
+        if not restricted:
+            return None
+        from_clause = select.args.get("from_")
+        if not isinstance(from_clause, exp.From):
+            return None
+        try:
+            active_sources = [
+                canonical_source_alias(from_clause.this, self.policy._dialect_spec)
+            ]
+        except (ValueError, AttributeError):
+            return self._unsupported("A JOIN source could not be resolved safely.")
+
+        for join in select.args.get("joins") or []:
+            if not isinstance(join, exp.Join):
+                return self._unsupported("A JOIN structure could not be resolved safely.")
+            try:
+                right_source = canonical_source_alias(join.this, self.policy._dialect_spec)
+            except (ValueError, AttributeError):
+                return self._unsupported("A JOIN source could not be resolved safely.")
+            if join.args.get("method") == "NATURAL":
+                return self._unsupported(
+                    "NATURAL JOIN is not supported when column restrictions are configured."
+                )
+            using = join.args.get("using") or []
+            for identifier in using:
+                if not isinstance(identifier, exp.Identifier):
+                    return self._unsupported("A JOIN USING column could not be resolved safely.")
+                name = canonical_identifier(
+                    identifier, self.policy._dialect_spec, kind=IdentifierKind.COLUMN
+                )
+                for source in (*active_sources, right_source):
+                    violation = self._check_source_column(source, name, physical, derived)
+                    if violation:
+                        return violation
+            active_sources.append(right_source)
+        return None
+
+    def _check_source_column(
+        self,
+        source: str,
+        column: str,
+        physical: dict[str, str],
+        derived: dict[str, Scope],
+    ) -> _Violation | None:
+        if source in physical:
+            return self._check_column(physical[source], column)
+        if source in derived:
+            if column in self._scope_outputs(derived[source]):
+                return None
+            return _Violation(
+                "column_scope_ambiguous",
+                "A JOIN column could not be resolved safely.",
+            )
+        return self._unsupported("A JOIN source could not be resolved safely.")
 
     def _check_column(self, table: str, column: str) -> _Violation | None:
         allowed = self.policy.allowed_columns.get(table)

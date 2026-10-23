@@ -10,7 +10,7 @@ Python 3.11–3.14 is supported.
 
 ```bash
 pip install guardrail-kit
-pip install 'guardrail-kit[google-adk]'  # optional ADK 2.12 integration
+pip install 'guardrail-kit[google-adk]'  # optional ADK 2.0+ integration
 ```
 
 ## Validate SQL
@@ -40,20 +40,31 @@ The default policy fails closed: it has no table allowlist and therefore blocks 
 
 `SQLPolicy` resolves a configured dialect through a closed registry. Canonical names and the documented aliases below are accepted exactly; whitespace-padded, case-modified, unknown, and unlisted SQLGlot dialect names are rejected rather than guessed or trimmed.
 
-| Database | Status | Canonical value | Aliases | Identifier policy |
-| --- | --- | --- | --- | --- |
-| PostgreSQL | Supported | `postgres` | `postgresql` | Unquoted identifiers fold to lowercase; quoted identifiers preserve case. |
-| SQLite | Supported | `sqlite` | `sqlite3` | Identifiers are compared case-insensitively; double-quoted identifiers are supported. |
-| MySQL | Supported, conservative case mode | `mysql` | None | Columns and routines are case-insensitive. Database/table and table-alias spelling must match exactly because server behavior depends on `lower_case_table_names` and platform. Backtick quoting is supported. |
-| Other SQLGlot dialects | Unsupported | — | — | Policy construction fails closed until dialect-specific security coverage is added. |
+| Database | Dialect | Aliases | Identifier behavior | Security tests | Status | Known limitation |
+| --- | --- | --- | --- | --- | --- | --- |
+| PostgreSQL | `postgres` | `postgresql` | Lowercase unquoted; preserve quoted | Yes | Supported | Search path remains database-controlled |
+| SQLite | `sqlite` | `sqlite3` | Case-insensitive | Yes | Supported | Attached database identity is not inspected |
+| MySQL | `mysql` | — | Exact tables/aliases; insensitive columns/functions | Yes | Supported | Conservative across `lower_case_table_names` modes |
+| SQL Server | `tsql` | `mssql`, `sqlserver` | Exact matching | Yes | Supported | Conservative across catalog collations |
+| Oracle | `oracle` | — | Uppercase unquoted; preserve quoted | Yes | Supported | Database links and synonyms are not resolved |
+| DuckDB | `duckdb` | — | Case-insensitive, including quoted names | Yes | Supported | External table functions still require function allowlisting |
+| Snowflake | `snowflake` | — | Uppercase unquoted; preserve quoted | Yes | Supported | Assumes default quoted-identifier behavior |
+| BigQuery | `bigquery` | — | Exact table paths; insensitive columns/aliases | Yes | Supported | Conservative with case-insensitive datasets; UDF names are exact |
+| Redshift | `redshift` | — | Lowercase unquoted; preserve quoted | Yes | Supported | Conservative across case-sensitive-identifier settings |
+| Databricks SQL | `databricks` | — | Exact matching | Yes | Supported | Conservative across catalog/analyzer settings |
+| Spark SQL | `spark` | — | Exact matching | Yes | Supported | Conservative across analyzer/catalog settings |
+
+Set operations, recursive CTEs, table hints, locking reads, and `SELECT INTO` remain blocked for every dialect. See the [full dialect support notes](docs/dialects.md), including intentionally unsupported SQLGlot dialects.
 
 MySQL's exact-spelling table rule can reject a query that the configured server would resolve successfully, but it avoids treating differently cased tables as interchangeable on case-sensitive deployments. Applications should use a consistent table-name convention and validate their actual server configuration.
 
 Column rules are resolved per physical table and alias using the selected dialect's identifier rules. Policy names may use that dialect's quoting and schema qualification. Unqualified columns in multi-source scopes, wildcards under column restrictions, and derived columns that cannot be established are rejected rather than guessed. Set operations are intentionally unsupported in v0.1.0.
 
+When column restrictions are active, every `JOIN ... USING` column must be allowed by both participating sources. This also applies to chained joins and derived or CTE sources. `NATURAL JOIN` is rejected because its implicit join columns cannot be authorized conclusively. Wildcards are rejected anywhere in the relevant expression tree, including `COUNT(*)` and qualified stars. Without column restrictions, existing wildcard and natural-join behavior is preserved.
+
 Function policies accept unqualified or schema-qualified names. Unqualified names still depend on database-specific name resolution, and overloads cannot be distinguished structurally; use schema-qualified policy entries and controlled connection resolution settings where function identity is security-sensitive.
 
-## Google ADK 2.12
+## Google ADK 2.0+
 
 ADK's `before_tool_callback` returns `None` to continue or a dictionary to skip the tool and use that dictionary as its result:
 
@@ -74,7 +85,7 @@ plugin = create_google_adk_plugin(validator, tool_names={"run_sql"})
 # App(..., plugins=[plugin])
 ```
 
-The plugin alone is not an execution boundary: ADK runs plugins before agent callbacks, so later callbacks can mutate an allowed argument. Use the guarded tool wrapper even when the plugin is installed. The supported version is `google-adk==2.12.0`; the wrapper relies on ADK's private `_get_declaration` method, so other versions are not claimed as compatible. Core imports do not require ADK. See [the executable example](examples/google_adk_integration.py). Streaming/live behavior is outside the currently verified integration surface and must be tested in the host application.
+The plugin alone is not an execution boundary: ADK runs plugins before agent callbacks, so later callbacks can mutate an allowed argument. Use the guarded tool wrapper even when the plugin is installed. The optional dependency accepts `google-adk>=2.0.0`; representative releases are tested in CI and unknown future releases are capability-checked rather than claimed as verified. The wrapper relies on the private `_get_declaration` method because no verified public registration API preserves this execution boundary. Core imports do not require ADK. See [the executable example](examples/google_adk_integration.py) and [compatibility matrix](docs/google-adk.md). Streaming/live behavior is outside the verified surface.
 
 ## Security and privacy
 

@@ -1,4 +1,6 @@
 import asyncio
+import importlib
+import os
 from dataclasses import dataclass
 
 import pytest
@@ -9,6 +11,20 @@ from guardrail_kit.integrations.google_adk import (
     create_guarded_google_adk_tool,
 )
 from guardrail_kit.sql import SQLPolicy, SQLValidator
+
+_DIALECTS = (
+    "postgres",
+    "sqlite",
+    "mysql",
+    "tsql",
+    "oracle",
+    "duckdb",
+    "snowflake",
+    "bigquery",
+    "redshift",
+    "databricks",
+    "spark",
+)
 
 
 @dataclass
@@ -57,10 +73,16 @@ def test_compatibility_callback_blocks_unexpected_validator_failure() -> None:
 
 
 def _require_adk() -> None:
-    pytest.importorskip("google.adk.tools.function_tool", reason="Google ADK extra not installed")
+    if os.environ.get("GUARDRAIL_KIT_REQUIRE_ADK") == "1":
+        importlib.import_module("google.adk.tools.function_tool")
+    else:
+        pytest.importorskip(
+            "google.adk.tools.function_tool", reason="Google ADK extra not installed"
+        )
 
 
-def test_guarded_tool_blocks_without_invoking_protected_callable() -> None:
+@pytest.mark.parametrize("dialect", _DIALECTS)
+def test_guarded_tool_blocks_without_invoking_protected_callable(dialect: str) -> None:
     _require_adk()
     calls: list[str] = []
 
@@ -70,7 +92,7 @@ def test_guarded_tool_blocks_without_invoking_protected_callable() -> None:
 
     guarded = create_guarded_google_adk_tool(
         run_sql,
-        SQLValidator(SQLPolicy(allowed_tables={"users"})),
+        SQLValidator(SQLPolicy(dialect=dialect, allowed_tables={"users"})),
     )
     response = asyncio.run(
         guarded.run_async(args={"query": "DELETE FROM users"}, tool_context=None)
@@ -79,7 +101,8 @@ def test_guarded_tool_blocks_without_invoking_protected_callable() -> None:
     assert calls == []
 
 
-def test_guarded_tool_executes_the_exact_validated_arguments() -> None:
+@pytest.mark.parametrize("dialect", _DIALECTS)
+def test_guarded_tool_executes_the_exact_validated_arguments(dialect: str) -> None:
     _require_adk()
     calls: list[str] = []
 
@@ -89,7 +112,7 @@ def test_guarded_tool_executes_the_exact_validated_arguments() -> None:
 
     guarded = create_guarded_google_adk_tool(
         run_sql,
-        SQLValidator(SQLPolicy(allowed_tables={"users"})),
+        SQLValidator(SQLPolicy(dialect=dialect, allowed_tables={"users"})),
     )
     args = {"query": "SELECT id FROM users"}
     response = asyncio.run(guarded.run_async(args=args, tool_context=None))

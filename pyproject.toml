@@ -22,8 +22,14 @@ classifiers = [
 ]
 dependencies = ["sqlglot>=30.0,<31"]
 
+[project.urls]
+Repository = "https://github.com/bothrajsuga/guardrail-kit"
+Documentation = "https://github.com/bothrajsuga/guardrail-kit/tree/main/docs"
+Issues = "https://github.com/bothrajsuga/guardrail-kit/issues"
+Security = "https://github.com/bothrajsuga/guardrail-kit/security/policy"
+
 [project.optional-dependencies]
-google-adk = ["google-adk==2.12.0"]
+google-adk = ["google-adk>=2.0.0"]
 dev = [
   "build>=1.2,<2",
   "mypy>=1.15,<2",
@@ -39,6 +45,15 @@ core-metadata-version = "2.4"
 
 [tool.hatch.build.targets.sdist]
 core-metadata-version = "2.4"
+ignore-vcs = true
+include = [
+  "/src",
+  "/docs",
+  "/examples",
+  "/CHANGELOG.md",
+  "/CONTRIBUTING.md",
+  "/SECURITY.md",
+]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
@@ -58,6 +73,9 @@ packages = ["guardrail_kit"]
 
 [[tool.mypy.overrides]]
 module = "guardrail_kit.integrations.google_adk"
-ignore_missing_imports = true
 disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = "google.adk.*"
+ignore_missing_imports = true
 

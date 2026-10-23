@@ -60,11 +60,42 @@ def test_whitespace_dialect_cannot_bypass_postgres_identifier_folding() -> None:
         ("sqlite", "sqlite"),
         ("sqlite3", "sqlite"),
         ("mysql", "mysql"),
+        ("tsql", "tsql"),
+        ("mssql", "tsql"),
+        ("sqlserver", "tsql"),
+        ("oracle", "oracle"),
+        ("duckdb", "duckdb"),
+        ("snowflake", "snowflake"),
+        ("bigquery", "bigquery"),
+        ("redshift", "redshift"),
+        ("databricks", "databricks"),
+        ("spark", "spark"),
     ],
 )
 def test_policy_resolves_documented_dialect_names(configured: str, canonical: str) -> None:
     policy = SQLPolicy(dialect=configured, allowed_tables={"users"})
     assert policy.dialect == canonical
+
+
+def test_policy_uses_upper_unquoted_semantics_for_oracle_and_snowflake() -> None:
+    for dialect in ("oracle", "snowflake"):
+        policy = SQLPolicy(
+            dialect=dialect,
+            allowed_tables={"users", '"Users"'},
+            allowed_columns={"users": {"id", '"Id"'}},
+        )
+        assert policy.allowed_tables == {'"Users"', "USERS"}
+        assert policy.allowed_columns == {"USERS": {"ID", '"Id"'}}
+
+
+def test_bigquery_table_and_udf_names_remain_case_sensitive() -> None:
+    policy = SQLPolicy(
+        dialect="bigquery",
+        allowed_tables={"project.dataset.Users"},
+        allowed_functions={"dataset.MyUdf"},
+    )
+    assert policy.allowed_tables == {"project.dataset.Users"}
+    assert policy.allowed_functions == {"dataset.MyUdf"}
 
 
 @pytest.mark.parametrize(

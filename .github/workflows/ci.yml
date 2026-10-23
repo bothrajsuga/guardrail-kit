@@ -27,15 +27,34 @@ jobs:
 
   adk-compatibility:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        google-adk-version: ["2.0.0", "2.3.0", "2.6.0", "2.9.2", "2.10.0", "2.11.0", "2.12.0"]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install -e '.[dev,google-adk]'
+      - run: python -m pip install -e '.[dev]' 'google-adk==${{ matrix.google-adk-version }}'
       - run: python -c "from guardrail_kit.integrations.google_adk import create_google_adk_plugin"
       - run: pytest tests/integration
+        env:
+          GUARDRAIL_KIT_REQUIRE_ADK: "1"
+
+  adk-latest-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e '.[dev]' 'google-adk>=2.0.0'
+      - run: pytest tests/integration
+        env:
+          GUARDRAIL_KIT_REQUIRE_ADK: "1"
 
   sqlglot-compatibility:
     runs-on: ubuntu-latest

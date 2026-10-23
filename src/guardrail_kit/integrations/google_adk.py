@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from inspect import signature
 from typing import Any
 
 from guardrail_kit.sql import SQLValidator
 
 
 class GoogleADKSQLGuardrail:
-    """Google ADK 2.12 pre-tool callback for SQL-bearing tools.
+    """Google ADK pre-tool callback for SQL-bearing tools.
 
     This compatibility callback blocks rejected calls, but an allowed argument
     can still be changed by a later callback. Prefer
@@ -70,6 +71,16 @@ def create_guarded_google_adk_tool(
             "Google ADK integration requires: pip install 'guardrail-kit[google-adk]'"
         ) from exc
 
+    required_parameters = {"name", "description"}
+    constructor_parameters = signature(BaseTool.__init__).parameters
+    if not required_parameters.issubset(constructor_parameters) or not callable(
+        getattr(BaseTool, "_get_declaration", None)
+    ) or not callable(getattr(BaseTool, "process_llm_request", None)):
+        raise RuntimeError(
+            "unsupported Google ADK version: guardrail-kit requires the secure "
+            "BaseTool registration capabilities provided by google-adk>=2.0.0"
+        )
+
     if isinstance(tool, BaseTool):
         protected_tool = tool
     elif callable(tool):
@@ -83,14 +94,19 @@ def create_guarded_google_adk_tool(
 
     class GuardedSQLTool(BaseTool):
         def __init__(self) -> None:
-            super().__init__(
-                name=protected_tool.name,
-                description=protected_tool.description,
-                is_long_running=protected_tool.is_long_running,
-                custom_metadata=protected_tool.custom_metadata,
-                behavior=protected_tool.behavior,
-                response_scheduling=protected_tool.response_scheduling,
-            )
+            constructor_values: dict[str, Any] = {
+                "name": protected_tool.name,
+                "description": protected_tool.description,
+            }
+            for name in (
+                "is_long_running",
+                "custom_metadata",
+                "behavior",
+                "response_scheduling",
+            ):
+                if name in constructor_parameters and hasattr(protected_tool, name):
+                    constructor_values[name] = getattr(protected_tool, name)
+            super().__init__(**constructor_values)
 
         def _get_declaration(self) -> Any:
             # BaseTool.process_llm_request must run on this wrapper so ADK's
