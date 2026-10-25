@@ -32,3 +32,17 @@ The guarded wrapper rejects ADK tools with custom `process_llm_request` implemen
 
 The guarded wrapper supports Google ADK 2.0.0 and later through a centralized BaseTool capability adapter and uses the private `_get_declaration` method to preserve wrapper registration. Capability checks reject incompatible APIs before a tool can be exposed. Representative releases are tested; future releases are not considered verified until the latest-version CI job passes. Streaming/live execution remains outside the verified integration surface.
 
+## PII and secrets threat model
+
+The PII and secrets guard accepts plain strings controlled by an attacker or application user. It treats detector failures, invalid input, and configured length-limit violations as block decisions. The default policy blocks detected content. Mask and redact actions transform only resolved spans and preserve surrounding text. Overlapping spans are merged before transformation so a lower-priority match cannot expose part of a higher-priority secret.
+
+Matches use half-open offsets into the original input and retain no matched value. Result metadata contains aggregate entity types and counts only. `repr(result)` and `result.to_safe_dict()` omit input and output text. `output_text` is a direct processing result, not safe telemetry: it contains the original text when no match exists or `allow` is explicitly selected, and masked output can intentionally retain portions such as an email domain or final card digits.
+
+Email, phone, IP, PAN, Aadhaar, and payment-card detections establish only pattern/checksum candidacy. They do not verify identity, ownership, account validity, geography, or whether the value is assigned. Aadhaar and payment-card checksums reduce false positives but do not make a candidate authentic. Phone detection is intentionally regional and conservative. Unicode text is supported, but internationalized email and every locale-specific identifier are not comprehensively recognized.
+
+Secret detection recognizes selected AWS access-key identifiers, GitHub token prefixes, API-key assignments, PEM private-key blocks, and bearer-token shapes. It does not validate a credential or prove that it is active. High Shannon entropy is an advisory candidate signal, is disabled by default, and must be explicitly enabled; ordinary compressed, encoded, random, or generated values can have high entropy.
+
+Custom and exclusion patterns are trusted configuration, never attacker-controlled runtime input. The policy rejects empty matches, capturing groups, backreferences, lookbehind, conditionals, common nested-quantifier forms, and patterns over 500 characters. These checks reduce but cannot prove absence of regular-expression denial of service. Keep patterns simple, review them as code, and retain the input-length limit.
+
+No deterministic detector is comprehensive DLP. Encoding, fragmentation, obfuscation, OCR errors, novel credential formats, and domain-specific identifiers can evade detection. False positives and false negatives remain possible. Use data minimization, least privilege, encryption, retention controls, provider-side secret scanning, and an enterprise DLP system where required.
+

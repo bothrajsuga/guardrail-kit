@@ -1,6 +1,6 @@
 # guardrail-kit
 
-`guardrail-kit` is a framework-independent Python toolkit for applying explicit policies to AI-generated operations. Version 0.1.0 validates SQL and optionally integrates with Google Agent Development Kit (ADK). It parses and inspects SQL; it never executes or repairs queries.
+`guardrail-kit` is a framework-independent Python toolkit for applying explicit policies to AI-generated operations. It provides structural SQL validation, deterministic PII and secret inspection, and optional Google Agent Development Kit (ADK) integration. It inspects content but does not execute SQL or verify a person's identity.
 
 > Alpha software and one defense-in-depth layer—not a complete security boundary. Always use a read-only database identity, least-privilege grants, statement timeouts, resource limits, and database-side auditing.
 
@@ -12,6 +12,21 @@ Python 3.11–3.14 is supported.
 pip install guardrail-kit
 pip install 'guardrail-kit[google-adk]'  # optional ADK 2.0+ integration
 ```
+
+## Inspect PII and secrets
+
+```python
+from guardrail_kit.pii import PIIGuard, PIIPolicy
+
+guard = PIIGuard(PIIPolicy(action="redact"))
+result = guard.inspect("Contact john@example.com")
+
+print(result.output_text)  # Contact [REDACTED]
+```
+
+The safe default action is `block`. Explicit actions are `allow`, `block`, `mask`, and `redact`. Detection covers email addresses, configured regional phone formats, validated IP addresses, Luhn-valid payment-card candidates, format-valid Indian PAN candidates, checksum-valid Aadhaar candidates, configured custom identifiers, and common synthetic secret formats. High-entropy candidates are disabled by default and remain heuristic even when explicitly enabled.
+
+Matches contain entity types and half-open offsets into the original input, never matched values. `PIIResult.to_safe_dict()` omits all text. `output_text` is intentionally available to the direct caller and can contain original input with the explicit `allow` action; never log it blindly. Custom regular expressions are configuration, not untrusted runtime input, and are subject to length and construct restrictions. See the [PII and secrets example](examples/pii_secrets_guard.py) and [security limitations](docs/security.md#pii-and-secrets-threat-model).
 
 ## Validate SQL
 
@@ -89,7 +104,7 @@ The plugin alone is not an execution boundary: ADK runs plugins before agent cal
 
 ## Security and privacy
 
-Results use stable reason codes and safe messages. Raw SQL is not placed in result metadata, audit events, or errors. Opt-in normalization returns a canonical form to the direct caller and should not be enabled where SQL itself is sensitive. Parsing is not proof that a query is safe, and this library does not prevent prompt injection or every form of SQL injection. Parameterize values separately and never concatenate untrusted data.
+Results use stable reason codes and safe messages. Raw SQL and matched sensitive values are not placed in result metadata, audit events, errors, or privacy-safe serialization. Direct output fields may contain caller-requested original or transformed content and must be handled as sensitive. Parsing and pattern matching are not proof that content is safe, and this library does not prevent prompt injection, every form of SQL injection, or every form of data loss. Parameterize SQL values and layer PII detection with access controls and DLP appropriate to the deployment.
 
 Read [the security model](docs/security.md) and report vulnerabilities according to [SECURITY.md](SECURITY.md).
 
@@ -109,7 +124,7 @@ TestPyPI and trusted-publishing instructions are in [the contributing guide](CON
 
 ## Roadmap
 
-Version 0.2.0 plans PII detection and masking. Later versions may add LangChain, LangGraph, and other adapters. These features are not present in v0.1.0; see [the roadmap](docs/roadmap.md).
+The development branch includes the Phase 2 PII and secrets guard. Later phases may add framework adapters only after separate design and review; see [the roadmap](docs/roadmap.md).
 
 Apache-2.0 licensed. Contributions are welcome—see [CONTRIBUTING.md](CONTRIBUTING.md).
 
