@@ -74,3 +74,25 @@ returned value but cannot reverse database, filesystem, network, financial, or
 other external side effects. Authorize inputs before execution and retain
 least-privilege controls at every external service boundary.
 
+## MCP gateway threat model
+
+The MCP gateway protects configured tool authority, arguments, approved schema
+identity, supported response content, and non-sensitive decision telemetry. It
+assumes policy configuration is trusted. Attackers may control call arguments,
+unconfigured tool names, server descriptions and schemas, response content,
+disconnects, timing, and a malicious or compromised MCP server.
+
+Server identity comes only from trusted application configuration. The gateway
+does not authenticate transports, so applications must bind the configured
+identity to a verified process or network endpoint. Tool metadata is untrusted.
+Every call rechecks the first tool-list page against an approved fingerprint and
+validates the final transformed payload. Newly discovered or changed tools are
+not silently accepted.
+
+Text and structured responses can be filtered, but binary/media content is
+blocked unless explicitly passed without inspection. Response filtering cannot
+undo server effects or eliminate response-based prompt injection. Direct client
+access, later tool-list pages, streaming, input-required flows, standalone
+proxying, transport security, credential storage, and server sandboxing remain
+outside Phase 4. See [the full MCP security guide](mcp.md).
+

@@ -18,4 +18,6 @@
 - Keep matched values out of match objects, metadata, safe serialization, and result representations.
 - Add optional LangChain 1.x guarded-tool wrappers with SQL, PII/secrets, and custom input policies.
 - Add explicit-policy LangGraph 1.x ToolNode construction with sync, async, and concurrent-call coverage.
+- Add an optional MCP 2.x in-process security gateway with default-deny tool authorization.
+- Pin approved MCP tool schemas, validate final payloads, inspect supported responses, and emit safe audit events.
 

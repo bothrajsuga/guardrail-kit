@@ -13,6 +13,7 @@ pip install guardrail-kit
 pip install 'guardrail-kit[google-adk]'  # optional ADK 2.0+ integration
 pip install 'guardrail-kit[langchain]'   # optional LangChain 1.x integration
 pip install 'guardrail-kit[langgraph]'   # optional LangGraph 1.x integration
+pip install 'guardrail-kit[mcp]'         # optional MCP 2.x security gateway
 ```
 
 ## Inspect PII and secrets
@@ -129,6 +130,24 @@ outside the boundary. Output inspection cannot undo external side effects. See
 the [integration guide](docs/langchain-langgraph.md) and
 [example](examples/langchain_langgraph.py).
 
+## MCP Security Gateway
+
+The optional MCP adapter provides default-deny, per-server tool authorization,
+approved schema fingerprints, final-payload JSON Schema and SQL validation,
+PII/secrets transformations, supported response inspection, timeouts, and safe
+audit events around the official asynchronous MCP client call path:
+
+```python
+result = await gateway.call_tool("read_database", {"query": "SELECT id FROM users"})
+```
+
+Server identity is trusted client configuration and must be bound to an
+authenticated transport by the application; server display metadata is never
+trusted as identity. Direct access to the unguarded client bypasses enforcement.
+Binary/media content, input-required flows, streaming, standalone proxying, and
+transport authentication are not claimed. See the [MCP guide](docs/mcp.md) and
+[local example](examples/mcp_gateway.py).
+
 ## Security and privacy
 
 Results use stable reason codes and safe messages. Raw SQL and matched sensitive values are not placed in result metadata, audit events, errors, or privacy-safe serialization. Direct output fields may contain caller-requested original or transformed content and must be handled as sensitive. Parsing and pattern matching are not proof that content is safe, and this library does not prevent prompt injection, every form of SQL injection, or every form of data loss. Parameterize SQL values and layer PII detection with access controls and DLP appropriate to the deployment.
@@ -151,7 +170,7 @@ TestPyPI and trusted-publishing instructions are in [the contributing guide](CON
 
 ## Roadmap
 
-The development branch includes the Phase 3 LangChain and LangGraph candidate. See [the roadmap](docs/roadmap.md).
+The development branch includes the Phase 4 MCP Security Gateway candidate. See [the roadmap](docs/roadmap.md).
 
 Apache-2.0 licensed. Contributions are welcome—see [CONTRIBUTING.md](CONTRIBUTING.md).
 
