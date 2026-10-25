@@ -46,3 +46,31 @@ Custom and exclusion patterns are trusted configuration, never attacker-controll
 
 No deterministic detector is comprehensive DLP. Encoding, fragmentation, obfuscation, OCR errors, novel credential formats, and domain-specific identifiers can evade detection. False positives and false negatives remain possible. Use data minimization, least privilege, encryption, retention controls, provider-side secret scanning, and an enterprise DLP system where required.
 
+## LangChain and LangGraph boundary
+
+The LangChain wrapper copies JSON-like arguments and applies configured SQL,
+PII/secrets, and custom policies inside the final wrapper callable. A policy
+block or exception prevents protected-tool invocation. Exceptions exposed to
+the framework contain only stable reason codes, not protected arguments or raw
+exception messages. Custom hooks see recursively immutable arguments, and the
+policy object has no shared per-call decision state.
+
+Framework schema validation occurs before the guarded callable, so its default
+error representation is replaced with a fixed message that omits rejected
+values. Sensitive-data transformations run before SQL authorization; the exact
+transformed SQL sent to the protected tool is the value parsed and authorized.
+Invalid transformed SQL fails closed.
+
+Only string values in dictionaries, lists, and tuples are inspected for PII;
+mapping keys and arbitrary Python objects are outside that traversal. Directly
+invoking or separately registering the original tool bypasses the wrapper.
+Custom tool invocation overrides, dynamic replacement, remote/distributed tool
+execution, incremental streaming, and graph paths that do not use guarded tools
+are not verified. Subgraphs inherit protection only for guarded tools they
+actually use. ToolNode protection is not universal graph protection.
+
+Output inspection occurs after the protected tool returns. It can redact the
+returned value but cannot reverse database, filesystem, network, financial, or
+other external side effects. Authorize inputs before execution and retain
+least-privilege controls at every external service boundary.
+

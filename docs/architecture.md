@@ -4,6 +4,14 @@ The core package defines immutable context, decision, result, and guardrail cont
 
 The PII and secrets guard follows the same boundary without altering `SQLValidator` or importing SQLGlot into its detector modules. `PIIDetector` and `SecretDetector` produce value-free, immutable spans. `PIIGuard` combines those spans, applies exclusions, resolves overlap during transformation, and returns a privacy-aware `PIIResult`. Policies are immutable after dialect-independent validation. Framework dependencies remain optional and isolated under `integrations`.
 
+The LangChain adapter constructs a schema-preserving `StructuredTool` whose
+sync and async callables copy and inspect arguments immediately before invoking
+the protected tool. `ToolGuardPolicy` composes SQL validation, recursive
+PII/secrets inspection, and immutable allow/block hooks. It holds no per-call
+mutable state. Output inspection runs only after the protected operation. The
+LangGraph helper admits only tools with explicit policies and places those same
+wrappers in a `ToolNode`; it does not claim to guard an entire graph.
+
 Detection, policy, and transformation are intentionally separate. Detectors identify candidates and original-input offsets. Policy selects enabled entity families, regional phone rules, custom/exclusion patterns, input bounds, secret heuristics, and the action. Masking/redaction operates from the end-user text and spans without putting matched values in metadata. Unexpected detector exceptions are converted to a block result.
 
 SQL dialect support is closed and explicit. `guardrail_kit.sql.dialects` resolves each accepted canonical name or documented alias to one immutable `DialectSpec`. The specification records SQLGlot mapping, quoting, identifier cases by kind, qualification order, pagination, blocked complex constructs, and support status. The policy stores that resolved specification once, and parsing, identifier handling, function matching, normalization, and validation all consume it. Adding a SQLGlot dialect does not make it supported automatically; it requires an explicit specification, database-specific identifier rules, adversarial tests, and documentation.

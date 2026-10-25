@@ -11,6 +11,8 @@ Python 3.11–3.14 is supported.
 ```bash
 pip install guardrail-kit
 pip install 'guardrail-kit[google-adk]'  # optional ADK 2.0+ integration
+pip install 'guardrail-kit[langchain]'   # optional LangChain 1.x integration
+pip install 'guardrail-kit[langgraph]'   # optional LangGraph 1.x integration
 ```
 
 ## Inspect PII and secrets
@@ -102,6 +104,31 @@ plugin = create_google_adk_plugin(validator, tool_names={"run_sql"})
 
 The plugin alone is not an execution boundary: ADK runs plugins before agent callbacks, so later callbacks can mutate an allowed argument. Use the guarded tool wrapper even when the plugin is installed. The optional dependency accepts `google-adk>=2.0.0`; representative releases are tested in CI and unknown future releases are capability-checked rather than claimed as verified. The wrapper relies on the private `_get_declaration` method because no verified public registration API preserves this execution boundary. Core imports do not require ADK. See [the executable example](examples/google_adk_integration.py) and [compatibility matrix](docs/google-adk.md). Streaming/live behavior is outside the verified surface.
 
+## LangChain and LangGraph
+
+```python
+from guardrail_kit.integrations.langchain import ToolGuardPolicy, guard_tool
+
+secured_tool = guard_tool(
+    original_tool,
+    policy=ToolGuardPolicy(
+        sql_validator=validator,
+        input_guard=pii_guard,
+        output_guard=pii_guard,
+    ),
+)
+```
+
+The optional adapter protects standard `BaseTool` and `StructuredTool` sync and
+async execution immediately before the underlying tool call. SQL, PII/secrets,
+and immutable custom input policies can be combined. LangGraph's `ToolNode` is
+supported through `create_guarded_tool_node`, which requires an explicit policy
+for every tool. Direct use of the original tool, dynamic replacement, custom
+invocation overrides, remote execution, and unverified streaming paths remain
+outside the boundary. Output inspection cannot undo external side effects. See
+the [integration guide](docs/langchain-langgraph.md) and
+[example](examples/langchain_langgraph.py).
+
 ## Security and privacy
 
 Results use stable reason codes and safe messages. Raw SQL and matched sensitive values are not placed in result metadata, audit events, errors, or privacy-safe serialization. Direct output fields may contain caller-requested original or transformed content and must be handled as sensitive. Parsing and pattern matching are not proof that content is safe, and this library does not prevent prompt injection, every form of SQL injection, or every form of data loss. Parameterize SQL values and layer PII detection with access controls and DLP appropriate to the deployment.
@@ -124,7 +151,7 @@ TestPyPI and trusted-publishing instructions are in [the contributing guide](CON
 
 ## Roadmap
 
-The development branch includes the Phase 2 PII and secrets guard. Later phases may add framework adapters only after separate design and review; see [the roadmap](docs/roadmap.md).
+The development branch includes the Phase 3 LangChain and LangGraph candidate. See [the roadmap](docs/roadmap.md).
 
 Apache-2.0 licensed. Contributions are welcome—see [CONTRIBUTING.md](CONTRIBUTING.md).
 

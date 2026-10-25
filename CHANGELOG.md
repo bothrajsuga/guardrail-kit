@@ -16,4 +16,6 @@
 - Detect email, configured phone formats, validated IP addresses, Luhn-valid card candidates, PAN, checksum-valid Aadhaar candidates, and custom identifiers.
 - Detect selected AWS/GitHub/API-key/PEM/bearer formats and opt-in advisory high-entropy candidates.
 - Keep matched values out of match objects, metadata, safe serialization, and result representations.
+- Add optional LangChain 1.x guarded-tool wrappers with SQL, PII/secrets, and custom input policies.
+- Add explicit-policy LangGraph 1.x ToolNode construction with sync, async, and concurrent-call coverage.
 
