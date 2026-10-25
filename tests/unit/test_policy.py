@@ -15,6 +15,18 @@ def test_policy_normalizes_identifiers() -> None:
     assert policy.allowed_functions == {"count"}
 
 
+def test_policy_rejects_column_table_keys_that_collide_after_normalization() -> None:
+    with pytest.raises(
+        ConfigurationError,
+        match="multiple column policies resolve to the same table identifier",
+    ):
+        SQLPolicy(
+            dialect="sqlite",
+            allowed_tables={"users"},
+            allowed_columns={"users": {"id"}, '"USERS"': {"secret"}},
+        )
+
+
 def test_policy_preserves_postgres_quoted_identifier_semantics() -> None:
     policy = SQLPolicy(
         allowed_tables={"users", '"Users"', '"Mixed.Schema"."Events"'},

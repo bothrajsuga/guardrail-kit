@@ -123,14 +123,12 @@ class SQLValidator:
             return self._unsupported("Set operations are not supported.")
         if not self.policy.allow_subqueries and any(scope.is_subquery for scope in scopes):
             return _Violation("subquery_not_allowed", "Subqueries are not allowed by this policy.")
-        with_clause = expression.args.get("with_")
-        if (
-            isinstance(with_clause, exp.With)
-            and with_clause.args.get("recursive")
-            and not self.policy._dialect_spec.supports_recursive_ctes
+        with_clauses = list(expression.find_all(exp.With))
+        if not self.policy._dialect_spec.supports_recursive_ctes and any(
+            with_clause.args.get("recursive") for with_clause in with_clauses
         ):
             return self._unsupported("Recursive CTEs are not supported.")
-        if not self.policy.allow_ctes and with_clause is not None:
+        if not self.policy.allow_ctes and with_clauses:
             return _Violation("cte_not_allowed", "CTEs are not allowed by this policy.")
 
         for scope in scopes:

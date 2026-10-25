@@ -8,6 +8,8 @@ Raw SQL can contain secrets. The library does not log it. Normalized SQL is opt-
 
 PostgreSQL, SQLite, MySQL, SQL Server/T-SQL, Oracle, DuckDB, Snowflake, BigQuery, Redshift, Databricks SQL, and Spark SQL have dialect-specific identifier and adversarial test coverage. The closed registry accepts only documented exact names and aliases. Unsupported or ambiguous AST shapes fail closed. Column restrictions reject wildcards and ambiguous multi-source unqualified references. This intentionally trades SQL coverage for predictable enforcement.
 
+CTE policy enforcement applies to every `WITH` node in the parsed statement, including CTEs nested inside subqueries and derived tables. Recursive CTEs remain unsupported at every nesting depth. Column-policy table keys are normalized during policy construction; configurations containing distinct keys that normalize to the same table are rejected instead of being resolved by mapping insertion order.
+
 Case rules that depend on deployment configuration use conservative exact matching. This affects MySQL table names, SQL Server collations, BigQuery dataset options, Redshift case-sensitive identifiers, and Databricks/Spark catalog or analyzer settings. Such matching can block a query the server would accept, but does not deliberately equate two names that the server might treat as different. Applications must keep those settings stable and align allowlists with the deployed catalog.
 
 With column restrictions enabled, `JOIN ... USING` columns are authorized against every participating source, including accumulated sources in chained joins. Derived tables and CTEs must expose the joined column through an already-validated output. `NATURAL JOIN` is blocked because its implicit column set depends on database schema. Wildcards are blocked throughout expressions, including function arguments such as `COUNT(*)`. These restrictions do not apply when no column policy is configured.
@@ -21,6 +23,8 @@ PostgreSQL quoted identifiers preserve case and unquoted identifiers fold to low
 Schema-qualify tables and functions and control database-specific name-resolution settings when identity is security-sensitive. Function overload identity is not available to this structural validator. SQLGlot parser acceptance is not proof that the target database will accept or safely execute a statement.
 
 The validator does not establish tenant isolation, row-level security, schema/search-path safety, database permissions, function overload identity, or query-cost bounds. Enforce those controls in the database and connection layer. No live database-server compatibility is claimed by the parser-based test matrix.
+
+The configured `LIMIT` bounds rows returned by the outer query; it is not a guarantee on rows scanned, intermediate result size, memory, CPU, or execution time. Nested queries can still be expensive. Enforce statement timeouts and database-side resource governance independently.
 
 Google ADK callback ordering allows later callbacks to change arguments. The provided guarded-tool wrapper therefore validates again inside the protected tool's `run_async` boundary. The callback/plugin APIs are retained for early rejection and must not be used alone as the database execution boundary.
 

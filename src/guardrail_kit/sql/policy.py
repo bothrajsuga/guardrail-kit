@@ -69,13 +69,17 @@ class SQLPolicy:
             tables = frozenset(
                 canonical_policy_table(item, dialect_spec) for item in self.allowed_tables
             )
-        columns = {
-            canonical_policy_table(table, dialect_spec): frozenset(
+        columns: dict[str, frozenset[str]] = {}
+        for table, allowed in self.allowed_columns.items():
+            canonical_table = canonical_policy_table(table, dialect_spec)
+            if canonical_table in columns:
+                raise ConfigurationError(
+                    "multiple column policies resolve to the same table identifier"
+                )
+            columns[canonical_table] = frozenset(
                 canonical_policy_identifier(column, dialect_spec, kind="column")
                 for column in allowed
             )
-            for table, allowed in self.allowed_columns.items()
-        }
         object.__setattr__(self, "allowed_tables", tables)
         object.__setattr__(self, "allowed_columns", MappingProxyType(columns))
         object.__setattr__(

@@ -338,6 +338,42 @@ def test_recursive_ctes_are_rejected_for_every_dialect(dialect: str) -> None:
     assert result.reason_code == "unsupported_construct"
 
 
+@pytest.mark.parametrize("dialect", _DIALECTS)
+def test_nested_ctes_cannot_bypass_cte_policy_for_any_dialect(dialect: str) -> None:
+    validator = SQLValidator(
+        SQLPolicy(
+            dialect=dialect,
+            allowed_tables={"users"},
+            allow_subqueries=True,
+            allow_ctes=False,
+        )
+    )
+    result = validator.validate(
+        "SELECT derived.id FROM "
+        "(WITH nested_users AS (SELECT id FROM users) "
+        "SELECT id FROM nested_users) AS derived"
+    )
+    assert result.reason_code == "cte_not_allowed"
+
+
+@pytest.mark.parametrize("dialect", _DIALECTS)
+def test_nested_recursive_ctes_are_rejected_for_every_dialect(dialect: str) -> None:
+    validator = SQLValidator(
+        SQLPolicy(
+            dialect=dialect,
+            allowed_tables={"users"},
+            allow_subqueries=True,
+            allow_ctes=True,
+        )
+    )
+    result = validator.validate(
+        "SELECT derived.id FROM "
+        "(WITH RECURSIVE nested_users AS (SELECT id FROM users) "
+        "SELECT id FROM nested_users) AS derived"
+    )
+    assert result.reason_code == "unsupported_construct"
+
+
 @pytest.mark.parametrize(
     "dialect,policy_function,query",
     [
